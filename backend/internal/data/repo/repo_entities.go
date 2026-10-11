@@ -459,7 +459,11 @@ func (r *EntityRepository) getOneTx(ctx context.Context, tx *ent.Tx, where ...pr
 		WithChildren(func(eq *ent.EntityQuery) {
 			eq.WithEntityType()
 		}).
-		WithAttachments().
+		WithAttachments(func(aq *ent.AttachmentQuery) {
+			// Maintenance-entry attachments belong to the entry, not the item;
+			// they must not surface in the item's own attachment list.
+			aq.Where(attachment.Not(attachment.HasMaintenanceEntry()))
+		}).
 		Only(ctx)
 	if err != nil {
 		recordSpanError(span, err)
@@ -2390,15 +2394,16 @@ func (r *EntityRepository) SetPrimaryPhotos(ctx context.Context, gid uuid.UUID) 
 	entityIDs, err := r.db.Entity.Query().
 		Where(
 			entity.HasGroupWith(group.ID(gid)),
+			// Only entities that have an item photo but no primary photo yet;
+			// entities that already have a primary must not get a second one.
 			entity.HasAttachmentsWith(
 				attachment.TypeEQ(attachment.TypePhoto),
-				attachment.Not(
-					attachment.And(
-						attachment.Primary(true),
-						attachment.TypeEQ(attachment.TypePhoto),
-					),
-				),
+				attachment.Not(attachment.HasMaintenanceEntry()),
 			),
+			entity.Not(entity.HasAttachmentsWith(
+				attachment.TypeEQ(attachment.TypePhoto),
+				attachment.Primary(true),
+			)),
 		).
 		IDs(loadCtx)
 	if err != nil {
@@ -2421,6 +2426,8 @@ func (r *EntityRepository) SetPrimaryPhotos(ctx context.Context, gid uuid.UUID) 
 				attachment.HasEntityWith(entity.ID(id)),
 				attachment.TypeEQ(attachment.TypePhoto),
 				attachment.Primary(false),
+				// Maintenance-entry photos are never primary for the item.
+				attachment.Not(attachment.HasMaintenanceEntry()),
 			).
 			First(updateCtx)
 		if err != nil {

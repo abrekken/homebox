@@ -7,6 +7,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/entity"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/group"
@@ -18,7 +19,8 @@ import (
 // associated with an item in the database. An entry represents a maintenance event
 // that has been performed on an item.
 type MaintenanceEntryRepository struct {
-	db *ent.Client
+	db          *ent.Client
+	attachments *AttachmentRepo
 }
 
 type MaintenanceEntryCreate struct {
@@ -53,12 +55,13 @@ func (mu MaintenanceEntryUpdate) Validate() error {
 
 type (
 	MaintenanceEntry struct {
-		ID            uuid.UUID  `json:"id"`
-		CompletedDate types.Date `json:"completedDate"`
-		ScheduledDate types.Date `json:"scheduledDate"`
-		Name          string     `json:"name"`
-		Description   string     `json:"description"`
-		Cost          float64    `json:"cost,string"`
+		ID            uuid.UUID        `json:"id"`
+		CompletedDate types.Date       `json:"completedDate"`
+		ScheduledDate types.Date       `json:"scheduledDate"`
+		Name          string           `json:"name"`
+		Description   string           `json:"description"`
+		Cost          float64          `json:"cost,string"`
+		Attachments   []ItemAttachment `json:"attachments"`
 	}
 )
 
@@ -68,6 +71,11 @@ var (
 )
 
 func mapMaintenanceEntry(entry *ent.MaintenanceEntry) MaintenanceEntry {
+	attachments := []ItemAttachment{}
+	if entry.Edges.Attachments != nil {
+		attachments = mapEach(entry.Edges.Attachments, ToItemAttachment)
+	}
+
 	return MaintenanceEntry{
 		ID:            entry.ID,
 		CompletedDate: types.DateFromDBTime(entry.Date),
@@ -75,7 +83,20 @@ func mapMaintenanceEntry(entry *ent.MaintenanceEntry) MaintenanceEntry {
 		Name:          entry.Name,
 		Description:   entry.Description,
 		Cost:          entry.Cost,
+		Attachments:   attachments,
 	}
+}
+
+func (r *MaintenanceEntryRepository) Get(ctx context.Context, gid uuid.UUID, id uuid.UUID) (MaintenanceEntry, error) {
+	entry, err := r.db.MaintenanceEntry.Query().
+		Where(
+			maintenanceentry.ID(id),
+			maintenanceentry.HasEntityWith(entity.HasGroupWith(group.ID(gid))),
+		).
+		WithAttachments().
+		Only(ctx)
+
+	return mapMaintenanceEntryErr(entry, err)
 }
 
 func (r *MaintenanceEntryRepository) GetScheduled(ctx context.Context, gid uuid.UUID, dt types.Date) ([]MaintenanceEntry, error) {
@@ -90,6 +111,7 @@ func (r *MaintenanceEntryRepository) GetScheduled(ctx context.Context, gid uuid.
 				maintenanceentry.DateEQ(time.Time{}),
 			),
 		).
+		WithAttachments().
 		All(ctx)
 
 	if err != nil {
@@ -138,15 +160,19 @@ func (r *MaintenanceEntryRepository) Update(ctx context.Context, gid uuid.UUID, 
 		return MaintenanceEntry{}, &ent.NotFoundError{}
 	}
 
-	item, err := r.db.MaintenanceEntry.UpdateOneID(id).
+	_, err = r.db.MaintenanceEntry.UpdateOneID(id).
 		SetDate(input.CompletedDate.Time()).
 		SetScheduledDate(input.ScheduledDate.Time()).
 		SetName(input.Name).
 		SetDescription(input.Description).
 		SetCost(input.Cost).
 		Save(ctx)
+	if err != nil {
+		return MaintenanceEntry{}, err
+	}
 
-	return mapMaintenanceEntryErr(item, err)
+	// Re-fetch so the returned entry carries its attachments.
+	return r.Get(ctx, gid, id)
 }
 
 func (r *MaintenanceEntryRepository) GetMaintenanceByItemID(ctx context.Context, groupID, itemID uuid.UUID, filters MaintenanceFilters) ([]MaintenanceEntryWithDetails, error) {
@@ -185,7 +211,7 @@ func (r *MaintenanceEntryRepository) GetMaintenanceByItemID(ctx context.Context,
 			maintenanceentry.ByDate(sql.OrderDesc()),
 		)
 	}
-	entries, err := query.WithEntity().All(ctx)
+	entries, err := query.WithEntity().WithAttachments().All(ctx)
 
 	if err != nil {
 		return []MaintenanceEntryWithDetails{}, err
@@ -195,15 +221,27 @@ func (r *MaintenanceEntryRepository) GetMaintenanceByItemID(ctx context.Context,
 }
 
 func (r *MaintenanceEntryRepository) Delete(ctx context.Context, gid uuid.UUID, id uuid.UUID) error {
-	deleted, err := r.db.MaintenanceEntry.Delete().Where(
-		maintenanceentry.ID(id),
-		maintenanceentry.HasEntityWith(entity.HasGroupWith(group.ID(gid))),
-	).Exec(ctx)
+	entry, err := r.db.MaintenanceEntry.Query().
+		Where(
+			maintenanceentry.ID(id),
+			maintenanceentry.HasEntityWith(entity.HasGroupWith(group.ID(gid))),
+		).
+		WithAttachments().
+		Only(ctx)
 	if err != nil {
 		return err
 	}
-	if deleted == 0 {
-		return &ent.NotFoundError{}
+
+	// Delete the entry's attachments (including their stored files) before the
+	// entry itself; the FK to maintenance_entries is ON DELETE SET NULL, so
+	// deleting the entry first would orphan the attachment rows and files.
+	for _, att := range entry.Edges.Attachments {
+		if err := r.attachments.Delete(ctx, gid, att.ID); err != nil {
+			log.Err(err).Str("attachment_id", att.ID.String()).
+				Msg("failed to delete maintenance entry attachment")
+			return err
+		}
 	}
-	return nil
+
+	return r.db.MaintenanceEntry.DeleteOneID(id).Exec(ctx)
 }

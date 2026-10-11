@@ -2023,6 +2023,114 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/maintenance/{id}/attachments": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Maintenance Attachments"
+                ],
+                "summary": "Create Maintenance Entry Attachment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Maintenance Entry ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "File attachment",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "name of the file including extension",
+                        "name": "name",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Type of file",
+                        "name": "type",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/repo.MaintenanceEntry"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/validate.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/validate.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/maintenance/{id}/attachments/{attachment_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "tags": [
+                    "Maintenance Attachments"
+                ],
+                "summary": "Delete Maintenance Entry Attachment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Maintenance Entry ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Attachment ID",
+                        "name": "attachment_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/validate.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/notifiers": {
             "get": {
                 "security": [
@@ -3395,6 +3503,14 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "maintenance_entry": {
+                    "description": "MaintenanceEntry holds the value of the maintenance_entry edge.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ent.MaintenanceEntry"
+                        }
+                    ]
+                },
                 "thumbnail": {
                     "description": "Thumbnail holds the value of the thumbnail edge.",
                     "allOf": [
@@ -4227,6 +4343,13 @@ const docTemplate = `{
         "ent.MaintenanceEntryEdges": {
             "type": "object",
             "properties": {
+                "attachments": {
+                    "description": "Attachments holds the value of the attachments edge.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ent.Attachment"
+                    }
+                },
                 "entity": {
                     "description": "Entity holds the value of the entity edge.",
                     "allOf": [
@@ -5836,6 +5959,12 @@ const docTemplate = `{
         "repo.MaintenanceEntry": {
             "type": "object",
             "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repo.ItemAttachment"
+                    }
+                },
                 "completedDate": {
                     "type": "string"
                 },
@@ -5905,6 +6034,12 @@ const docTemplate = `{
         "repo.MaintenanceEntryWithDetails": {
             "type": "object",
             "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repo.ItemAttachment"
+                    }
+                },
                 "completedDate": {
                     "type": "string"
                 },

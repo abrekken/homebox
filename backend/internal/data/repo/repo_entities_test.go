@@ -1035,3 +1035,32 @@ func TestEntityRepository_QueryByGroup_TimestampOrderDefaultsDesc(t *testing.T) 
 	assert.Equal(t, []uuid.UUID{first.ID, third.ID, second.ID}, order("updatedAt", ""))
 	assert.Equal(t, []uuid.UUID{second.ID, third.ID, first.ID}, order("updatedAt", "asc"))
 }
+
+func TestEntityRepository_SetPrimaryPhotos_KeepsExistingPrimary(t *testing.T) {
+	ctx := context.Background()
+	item := useEntities(t, 1)[0]
+
+	first, err := tRepos.Attachments.Create(ctx, item.ID,
+		ItemCreateAttachment{Title: "first.jpg", Content: strings.NewReader("first")},
+		attachment.TypePhoto, false,
+	)
+	require.NoError(t, err)
+	require.True(t, first.Primary, "first photo should auto-set primary")
+
+	second, err := tRepos.Attachments.Create(ctx, item.ID,
+		ItemCreateAttachment{Title: "second.jpg", Content: strings.NewReader("second")},
+		attachment.TypePhoto, false,
+	)
+	require.NoError(t, err)
+	require.False(t, second.Primary)
+
+	_, err = tRepos.Entities.SetPrimaryPhotos(ctx, tGroup.ID)
+	require.NoError(t, err)
+
+	gotFirst, err := tRepos.Attachments.Get(ctx, tGroup.ID, first.ID)
+	require.NoError(t, err)
+	gotSecond, err := tRepos.Attachments.Get(ctx, tGroup.ID, second.ID)
+	require.NoError(t, err)
+	assert.True(t, gotFirst.Primary, "existing primary photo was cleared")
+	assert.False(t, gotSecond.Primary, "SetPrimaryPhotos gave the item a second primary photo")
+}

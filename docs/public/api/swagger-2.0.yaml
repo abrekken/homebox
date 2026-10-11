@@ -120,6 +120,10 @@ definitions:
         allOf:
         - $ref: '#/definitions/ent.Entity'
         description: Entity holds the value of the entity edge.
+      maintenance_entry:
+        allOf:
+        - $ref: '#/definitions/ent.MaintenanceEntry'
+        description: MaintenanceEntry holds the value of the maintenance_entry edge.
       thumbnail:
         allOf:
         - $ref: '#/definitions/ent.Attachment'
@@ -693,6 +697,11 @@ definitions:
     type: object
   ent.MaintenanceEntryEdges:
     properties:
+      attachments:
+        description: Attachments holds the value of the attachments edge.
+        items:
+          $ref: '#/definitions/ent.Attachment'
+        type: array
       entity:
         allOf:
         - $ref: '#/definitions/ent.Entity'
@@ -1816,6 +1825,10 @@ definitions:
     type: object
   repo.MaintenanceEntry:
     properties:
+      attachments:
+        items:
+          $ref: '#/definitions/repo.ItemAttachment'
+        type: array
       completedDate:
         type: string
       cost:
@@ -1862,6 +1875,10 @@ definitions:
     type: object
   repo.MaintenanceEntryWithDetails:
     properties:
+      attachments:
+        items:
+          $ref: '#/definitions/repo.ItemAttachment'
+        type: array
       completedDate:
         type: string
       cost:
@@ -3650,6 +3667,75 @@ paths:
       summary: Update Maintenance Entry
       tags:
       - Maintenance
+  /v1/maintenance/{id}/attachments:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Maintenance Entry ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: File attachment
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: name of the file including extension
+        in: formData
+        name: name
+        required: true
+        type: string
+      - description: Type of file
+        in: formData
+        name: type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/repo.MaintenanceEntry'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/validate.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/validate.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Create Maintenance Entry Attachment
+      tags:
+      - Maintenance Attachments
+  /v1/maintenance/{id}/attachments/{attachment_id}:
+    delete:
+      parameters:
+      - description: Maintenance Entry ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Attachment ID
+        in: path
+        name: attachment_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/validate.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Delete Maintenance Entry Attachment
+      tags:
+      - Maintenance Attachments
   /v1/notifiers:
     get:
       produces:

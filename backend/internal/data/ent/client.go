@@ -621,6 +621,22 @@ func (c *AttachmentClient) QueryEntity(_m *Attachment) *EntityQuery {
 	return query
 }
 
+// QueryMaintenanceEntry queries the maintenance_entry edge of a Attachment.
+func (c *AttachmentClient) QueryMaintenanceEntry(_m *Attachment) *MaintenanceEntryQuery {
+	query := (&MaintenanceEntryClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(attachment.Table, attachment.FieldID, id),
+			sqlgraph.To(maintenanceentry.Table, maintenanceentry.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, attachment.MaintenanceEntryTable, attachment.MaintenanceEntryColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryThumbnail queries the thumbnail edge of a Attachment.
 func (c *AttachmentClient) QueryThumbnail(_m *Attachment) *AttachmentQuery {
 	query := (&AttachmentClient{config: c.config}).Query()
@@ -2472,6 +2488,22 @@ func (c *MaintenanceEntryClient) QueryEntity(_m *MaintenanceEntry) *EntityQuery 
 			sqlgraph.From(maintenanceentry.Table, maintenanceentry.FieldID, id),
 			sqlgraph.To(entity.Table, entity.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, maintenanceentry.EntityTable, maintenanceentry.EntityColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAttachments queries the attachments edge of a MaintenanceEntry.
+func (c *MaintenanceEntryClient) QueryAttachments(_m *MaintenanceEntry) *AttachmentQuery {
+	query := (&AttachmentClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(maintenanceentry.Table, maintenanceentry.FieldID, id),
+			sqlgraph.To(attachment.Table, attachment.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, maintenanceentry.AttachmentsTable, maintenanceentry.AttachmentsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil

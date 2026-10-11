@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/attachment"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/entity"
+	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/maintenanceentry"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/predicate"
 )
 
@@ -125,6 +126,25 @@ func (_u *AttachmentUpdate) SetEntity(v *Entity) *AttachmentUpdate {
 	return _u.SetEntityID(v.ID)
 }
 
+// SetMaintenanceEntryID sets the "maintenance_entry" edge to the MaintenanceEntry entity by ID.
+func (_u *AttachmentUpdate) SetMaintenanceEntryID(id uuid.UUID) *AttachmentUpdate {
+	_u.mutation.SetMaintenanceEntryID(id)
+	return _u
+}
+
+// SetNillableMaintenanceEntryID sets the "maintenance_entry" edge to the MaintenanceEntry entity by ID if the given value is not nil.
+func (_u *AttachmentUpdate) SetNillableMaintenanceEntryID(id *uuid.UUID) *AttachmentUpdate {
+	if id != nil {
+		_u = _u.SetMaintenanceEntryID(*id)
+	}
+	return _u
+}
+
+// SetMaintenanceEntry sets the "maintenance_entry" edge to the MaintenanceEntry entity.
+func (_u *AttachmentUpdate) SetMaintenanceEntry(v *MaintenanceEntry) *AttachmentUpdate {
+	return _u.SetMaintenanceEntryID(v.ID)
+}
+
 // SetThumbnailID sets the "thumbnail" edge to the Attachment entity by ID.
 func (_u *AttachmentUpdate) SetThumbnailID(id uuid.UUID) *AttachmentUpdate {
 	_u.mutation.SetThumbnailID(id)
@@ -152,6 +172,12 @@ func (_u *AttachmentUpdate) Mutation() *AttachmentMutation {
 // ClearEntity clears the "entity" edge to the Entity entity.
 func (_u *AttachmentUpdate) ClearEntity() *AttachmentUpdate {
 	_u.mutation.ClearEntity()
+	return _u
+}
+
+// ClearMaintenanceEntry clears the "maintenance_entry" edge to the MaintenanceEntry entity.
+func (_u *AttachmentUpdate) ClearMaintenanceEntry() *AttachmentUpdate {
+	_u.mutation.ClearMaintenanceEntry()
 	return _u
 }
 
@@ -259,6 +285,35 @@ func (_u *AttachmentUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(entity.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.MaintenanceEntryCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   attachment.MaintenanceEntryTable,
+			Columns: []string{attachment.MaintenanceEntryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(maintenanceentry.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.MaintenanceEntryIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   attachment.MaintenanceEntryTable,
+			Columns: []string{attachment.MaintenanceEntryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(maintenanceentry.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {
@@ -410,6 +465,25 @@ func (_u *AttachmentUpdateOne) SetEntity(v *Entity) *AttachmentUpdateOne {
 	return _u.SetEntityID(v.ID)
 }
 
+// SetMaintenanceEntryID sets the "maintenance_entry" edge to the MaintenanceEntry entity by ID.
+func (_u *AttachmentUpdateOne) SetMaintenanceEntryID(id uuid.UUID) *AttachmentUpdateOne {
+	_u.mutation.SetMaintenanceEntryID(id)
+	return _u
+}
+
+// SetNillableMaintenanceEntryID sets the "maintenance_entry" edge to the MaintenanceEntry entity by ID if the given value is not nil.
+func (_u *AttachmentUpdateOne) SetNillableMaintenanceEntryID(id *uuid.UUID) *AttachmentUpdateOne {
+	if id != nil {
+		_u = _u.SetMaintenanceEntryID(*id)
+	}
+	return _u
+}
+
+// SetMaintenanceEntry sets the "maintenance_entry" edge to the MaintenanceEntry entity.
+func (_u *AttachmentUpdateOne) SetMaintenanceEntry(v *MaintenanceEntry) *AttachmentUpdateOne {
+	return _u.SetMaintenanceEntryID(v.ID)
+}
+
 // SetThumbnailID sets the "thumbnail" edge to the Attachment entity by ID.
 func (_u *AttachmentUpdateOne) SetThumbnailID(id uuid.UUID) *AttachmentUpdateOne {
 	_u.mutation.SetThumbnailID(id)
@@ -437,6 +511,12 @@ func (_u *AttachmentUpdateOne) Mutation() *AttachmentMutation {
 // ClearEntity clears the "entity" edge to the Entity entity.
 func (_u *AttachmentUpdateOne) ClearEntity() *AttachmentUpdateOne {
 	_u.mutation.ClearEntity()
+	return _u
+}
+
+// ClearMaintenanceEntry clears the "maintenance_entry" edge to the MaintenanceEntry entity.
+func (_u *AttachmentUpdateOne) ClearMaintenanceEntry() *AttachmentUpdateOne {
+	_u.mutation.ClearMaintenanceEntry()
 	return _u
 }
 
@@ -574,6 +654,35 @@ func (_u *AttachmentUpdateOne) sqlSave(ctx context.Context) (_node *Attachment, 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(entity.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.MaintenanceEntryCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   attachment.MaintenanceEntryTable,
+			Columns: []string{attachment.MaintenanceEntryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(maintenanceentry.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.MaintenanceEntryIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   attachment.MaintenanceEntryTable,
+			Columns: []string{attachment.MaintenanceEntryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(maintenanceentry.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
+	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/attachment"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/entity"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/maintenanceentry"
 )
@@ -135,6 +136,21 @@ func (_c *MaintenanceEntryCreate) SetNillableID(v *uuid.UUID) *MaintenanceEntryC
 // SetEntity sets the "entity" edge to the Entity entity.
 func (_c *MaintenanceEntryCreate) SetEntity(v *Entity) *MaintenanceEntryCreate {
 	return _c.SetEntityID(v.ID)
+}
+
+// AddAttachmentIDs adds the "attachments" edge to the Attachment entity by IDs.
+func (_c *MaintenanceEntryCreate) AddAttachmentIDs(ids ...uuid.UUID) *MaintenanceEntryCreate {
+	_c.mutation.AddAttachmentIDs(ids...)
+	return _c
+}
+
+// AddAttachments adds the "attachments" edges to the Attachment entity.
+func (_c *MaintenanceEntryCreate) AddAttachments(v ...*Attachment) *MaintenanceEntryCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddAttachmentIDs(ids...)
 }
 
 // Mutation returns the MaintenanceEntryMutation object of the builder.
@@ -298,6 +314,22 @@ func (_c *MaintenanceEntryCreate) createSpec() (*MaintenanceEntry, *sqlgraph.Cre
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.EntityID = nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.AttachmentsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   maintenanceentry.AttachmentsTable,
+			Columns: []string{maintenanceentry.AttachmentsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(attachment.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec

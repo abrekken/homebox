@@ -44,5 +44,6 @@ func (MaintenanceEntry) Edges() []ent.Edge {
 			Ref("maintenance_entries").
 			Required().
 			Unique(),
+		edge.To("attachments", Attachment.Type),
 	}
 }

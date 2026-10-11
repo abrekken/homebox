@@ -43,7 +43,7 @@ func New(db *ent.Client, bus *eventbus.EventBus, storage config.Storage, pubSubC
 		EntityTemplates:     &EntityTemplatesRepository{db, bus},
 		Tags:                &TagRepository{db, bus},
 		Attachments:         attachments,
-		MaintEntry:          &MaintenanceEntryRepository{db},
+		MaintEntry:          &MaintenanceEntryRepository{db, attachments},
 		Notifiers:           NewNotifierRepository(db),
 		Exports:             &ExportRepository{db},
 	}
