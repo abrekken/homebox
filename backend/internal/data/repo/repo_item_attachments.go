@@ -26,6 +26,7 @@ import (
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/attachment"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/entity"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/group"
+	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/maintenanceentry"
 	"github.com/sysadminsmedia/homebox/backend/internal/sys/config"
 	"github.com/sysadminsmedia/homebox/backend/pkgs/utils"
 	"github.com/zeebo/blake3"
@@ -356,6 +357,8 @@ func (r *AttachmentRepo) Create(ctx context.Context, itemID uuid.UUID, doc ItemC
 			Where(
 				attachment.HasEntityWith(entity.ID(itemID)),
 				attachment.TypeEQ(typ),
+				// Maintenance-entry photos don't count toward the item's photos.
+				attachment.Not(attachment.HasMaintenanceEntry()),
 			).
 			Count(ctx)
 		if err != nil {
@@ -372,6 +375,63 @@ func (r *AttachmentRepo) Create(ctx context.Context, itemID uuid.UUID, doc ItemC
 		}
 	}
 
+	return r.finalizeAttachmentCreate(ctx, tx, bldr, itemID, doc)
+}
+
+// CreateForMaintenance creates an attachment attached to a maintenance entry.
+// The attachment is also linked to the entry's item so it remains downloadable
+// through the existing entity attachment route. The maintenance entry must
+// belong to the caller's group, otherwise a not-found error is returned.
+// Primary is always false for maintenance attachments.
+func (r *AttachmentRepo) CreateForMaintenance(ctx context.Context, gid, maintenanceID uuid.UUID, doc ItemCreateAttachment, typ attachment.Type) (*ent.Attachment, error) {
+	ctx, span := otel.Tracer("data").Start(ctx, "repo.AttachmentRepo.CreateForMaintenance")
+	defer span.End()
+
+	entry, err := r.db.MaintenanceEntry.Query().
+		Where(
+			maintenanceentry.ID(maintenanceID),
+			maintenanceentry.HasEntityWith(entity.HasGroupWith(group.ID(gid))),
+		).
+		Only(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if typ == "" {
+		typ = attachment.TypeAttachment
+	}
+
+	tx, err := r.db.Tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// If there is an error during file creation rollback the database
+	defer func() {
+		if v := recover(); v != nil {
+			err := tx.Rollback()
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	bldr := tx.Attachment.Create().
+		SetID(uuid.New()).
+		SetCreatedAt(time.Now()).
+		SetUpdatedAt(time.Now()).
+		SetType(typ).
+		SetEntityID(entry.EntityID).
+		SetMaintenanceEntryID(maintenanceID).
+		SetTitle(doc.Title)
+
+	return r.finalizeAttachmentCreate(ctx, tx, bldr, entry.EntityID, doc)
+}
+
+// finalizeAttachmentCreate uploads the attachment content, persists the
+// builder within the open transaction, and notifies the thumbnail worker.
+// Shared by Create and CreateForMaintenance.
+func (r *AttachmentRepo) finalizeAttachmentCreate(ctx context.Context, tx *ent.Tx, bldr *ent.AttachmentCreate, itemID uuid.UUID, doc ItemCreateAttachment) (*ent.Attachment, error) {
 	// Get the group ID for the item the attachment is being created for
 	itemGroup, err := tx.Entity.Query().QueryGroup().Where(group.HasEntitiesWith(entity.ID(itemID))).First(ctx)
 	if err != nil {
@@ -496,7 +556,7 @@ func (r *AttachmentRepo) Get(ctx context.Context, gid uuid.UUID, id uuid.UUID) (
 
 func (r *AttachmentRepo) Update(ctx context.Context, gid uuid.UUID, id uuid.UUID, data *ItemAttachmentUpdate) (*ent.Attachment, error) {
 	// Validate that the attachment belongs to the specified group
-	_, err := r.db.Attachment.Query().
+	existing, err := r.db.Attachment.Query().
 		Where(
 			attachment.ID(id),
 			attachment.HasEntityWith(entity.HasGroupWith(group.ID(gid))),
@@ -506,15 +566,22 @@ func (r *AttachmentRepo) Update(ctx context.Context, gid uuid.UUID, id uuid.UUID
 		return nil, err
 	}
 
+	isMaintenance, err := existing.QueryMaintenanceEntry().Exist(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// TODO: execute within Tx
 	typ := attachment.Type(data.Type)
+	// Primary only applies to item photos, never to maintenance-entry attachments
+	primary := typ == attachment.TypePhoto && data.Primary && !isMaintenance
 
 	bldr := r.db.Attachment.UpdateOneID(id).
 		SetType(typ)
 
 	// Primary only applies to photos
 	if typ == attachment.TypePhoto {
-		bldr = bldr.SetPrimary(data.Primary)
+		bldr = bldr.SetPrimary(primary)
 	} else {
 		bldr = bldr.SetPrimary(false)
 	}
@@ -530,7 +597,7 @@ func (r *AttachmentRepo) Update(ctx context.Context, gid uuid.UUID, id uuid.UUID
 	}
 
 	// Only remove primary status from other photo attachments when setting a new photo as primary
-	if typ == attachment.TypePhoto && data.Primary {
+	if primary {
 		err = r.db.Attachment.Update().
 			Where(
 				attachment.HasEntityWith(entity.ID(attachmentItem.ID)),
@@ -637,6 +704,25 @@ func (r *AttachmentRepo) Delete(ctx context.Context, gid uuid.UUID, id uuid.UUID
 	}
 
 	return r.db.Attachment.DeleteOneID(id).Exec(ctx)
+}
+
+// DeleteForMaintenance deletes an attachment after validating that it belongs
+// to the given maintenance entry within the caller's group. Cross-group or
+// mismatched IDs return a not-found error.
+func (r *AttachmentRepo) DeleteForMaintenance(ctx context.Context, gid, maintenanceID, attachmentID uuid.UUID) error {
+	exists, err := r.db.Attachment.Query().Where(
+		attachment.ID(attachmentID),
+		attachment.HasMaintenanceEntryWith(maintenanceentry.ID(maintenanceID)),
+		attachment.HasEntityWith(entity.HasGroupWith(group.ID(gid))),
+	).Exist(ctx)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return &ent.NotFoundError{}
+	}
+
+	return r.Delete(ctx, gid, attachmentID)
 }
 
 func (r *AttachmentRepo) Rename(ctx context.Context, gid uuid.UUID, id uuid.UUID, title string) (*ent.Attachment, error) {

@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/attachment"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/entity"
+	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/maintenanceentry"
 )
 
 // Attachment is the model entity for the Attachment schema.
@@ -35,21 +36,24 @@ type Attachment struct {
 	MimeType string `json:"mime_type,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the AttachmentQuery when eager-loading is set.
-	Edges                AttachmentEdges `json:"edges"`
-	attachment_thumbnail *uuid.UUID
-	entity_attachments   *uuid.UUID
-	selectValues         sql.SelectValues
+	Edges                         AttachmentEdges `json:"edges"`
+	attachment_thumbnail          *uuid.UUID
+	entity_attachments            *uuid.UUID
+	maintenance_entry_attachments *uuid.UUID
+	selectValues                  sql.SelectValues
 }
 
 // AttachmentEdges holds the relations/edges for other nodes in the graph.
 type AttachmentEdges struct {
 	// Entity holds the value of the entity edge.
 	Entity *Entity `json:"entity,omitempty"`
+	// MaintenanceEntry holds the value of the maintenance_entry edge.
+	MaintenanceEntry *MaintenanceEntry `json:"maintenance_entry,omitempty"`
 	// Thumbnail holds the value of the thumbnail edge.
 	Thumbnail *Attachment `json:"thumbnail,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [2]bool
+	loadedTypes [3]bool
 }
 
 // EntityOrErr returns the Entity value or an error if the edge
@@ -63,12 +67,23 @@ func (e AttachmentEdges) EntityOrErr() (*Entity, error) {
 	return nil, &NotLoadedError{edge: "entity"}
 }
 
+// MaintenanceEntryOrErr returns the MaintenanceEntry value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e AttachmentEdges) MaintenanceEntryOrErr() (*MaintenanceEntry, error) {
+	if e.MaintenanceEntry != nil {
+		return e.MaintenanceEntry, nil
+	} else if e.loadedTypes[1] {
+		return nil, &NotFoundError{label: maintenanceentry.Label}
+	}
+	return nil, &NotLoadedError{edge: "maintenance_entry"}
+}
+
 // ThumbnailOrErr returns the Thumbnail value or an error if the edge
 // was not loaded in eager-loading, or loaded but was not found.
 func (e AttachmentEdges) ThumbnailOrErr() (*Attachment, error) {
 	if e.Thumbnail != nil {
 		return e.Thumbnail, nil
-	} else if e.loadedTypes[1] {
+	} else if e.loadedTypes[2] {
 		return nil, &NotFoundError{label: attachment.Label}
 	}
 	return nil, &NotLoadedError{edge: "thumbnail"}
@@ -90,6 +105,8 @@ func (*Attachment) scanValues(columns []string) ([]any, error) {
 		case attachment.ForeignKeys[0]: // attachment_thumbnail
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
 		case attachment.ForeignKeys[1]: // entity_attachments
+			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
+		case attachment.ForeignKeys[2]: // maintenance_entry_attachments
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
 		default:
 			values[i] = new(sql.UnknownType)
@@ -168,6 +185,13 @@ func (_m *Attachment) assignValues(columns []string, values []any) error {
 				_m.entity_attachments = new(uuid.UUID)
 				*_m.entity_attachments = *value.S.(*uuid.UUID)
 			}
+		case attachment.ForeignKeys[2]:
+			if value, ok := values[i].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field maintenance_entry_attachments", values[i])
+			} else if value.Valid {
+				_m.maintenance_entry_attachments = new(uuid.UUID)
+				*_m.maintenance_entry_attachments = *value.S.(*uuid.UUID)
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -184,6 +208,11 @@ func (_m *Attachment) Value(name string) (ent.Value, error) {
 // QueryEntity queries the "entity" edge of the Attachment entity.
 func (_m *Attachment) QueryEntity() *EntityQuery {
 	return NewAttachmentClient(_m.config).QueryEntity(_m)
+}
+
+// QueryMaintenanceEntry queries the "maintenance_entry" edge of the Attachment entity.
+func (_m *Attachment) QueryMaintenanceEntry() *MaintenanceEntryQuery {
+	return NewAttachmentClient(_m.config).QueryMaintenanceEntry(_m)
 }
 
 // QueryThumbnail queries the "thumbnail" edge of the Attachment entity.

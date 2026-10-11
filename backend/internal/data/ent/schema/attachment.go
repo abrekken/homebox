@@ -35,6 +35,9 @@ func (Attachment) Edges() []ent.Edge {
 		edge.From("entity", Entity.Type).
 			Ref("attachments").
 			Unique(),
+		edge.From("maintenance_entry", MaintenanceEntry.Type).
+			Ref("attachments").
+			Unique(),
 		edge.To("thumbnail", Attachment.Type).
 			Unique(),
 	}

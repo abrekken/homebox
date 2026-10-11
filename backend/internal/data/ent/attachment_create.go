@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/attachment"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/entity"
+	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/maintenanceentry"
 )
 
 // AttachmentCreate is the builder for creating a Attachment entity.
@@ -151,6 +152,25 @@ func (_c *AttachmentCreate) SetNillableEntityID(id *uuid.UUID) *AttachmentCreate
 // SetEntity sets the "entity" edge to the Entity entity.
 func (_c *AttachmentCreate) SetEntity(v *Entity) *AttachmentCreate {
 	return _c.SetEntityID(v.ID)
+}
+
+// SetMaintenanceEntryID sets the "maintenance_entry" edge to the MaintenanceEntry entity by ID.
+func (_c *AttachmentCreate) SetMaintenanceEntryID(id uuid.UUID) *AttachmentCreate {
+	_c.mutation.SetMaintenanceEntryID(id)
+	return _c
+}
+
+// SetNillableMaintenanceEntryID sets the "maintenance_entry" edge to the MaintenanceEntry entity by ID if the given value is not nil.
+func (_c *AttachmentCreate) SetNillableMaintenanceEntryID(id *uuid.UUID) *AttachmentCreate {
+	if id != nil {
+		_c = _c.SetMaintenanceEntryID(*id)
+	}
+	return _c
+}
+
+// SetMaintenanceEntry sets the "maintenance_entry" edge to the MaintenanceEntry entity.
+func (_c *AttachmentCreate) SetMaintenanceEntry(v *MaintenanceEntry) *AttachmentCreate {
+	return _c.SetMaintenanceEntryID(v.ID)
 }
 
 // SetThumbnailID sets the "thumbnail" edge to the Attachment entity by ID.
@@ -347,6 +367,23 @@ func (_c *AttachmentCreate) createSpec() (*Attachment, *sqlgraph.CreateSpec) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.entity_attachments = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.MaintenanceEntryIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   attachment.MaintenanceEntryTable,
+			Columns: []string{attachment.MaintenanceEntryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(maintenanceentry.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.maintenance_entry_attachments = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.ThumbnailIDs(); len(nodes) > 0 {

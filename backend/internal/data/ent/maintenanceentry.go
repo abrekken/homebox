@@ -45,9 +45,11 @@ type MaintenanceEntry struct {
 type MaintenanceEntryEdges struct {
 	// Entity holds the value of the entity edge.
 	Entity *Entity `json:"entity,omitempty"`
+	// Attachments holds the value of the attachments edge.
+	Attachments []*Attachment `json:"attachments,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // EntityOrErr returns the Entity value or an error if the edge
@@ -59,6 +61,15 @@ func (e MaintenanceEntryEdges) EntityOrErr() (*Entity, error) {
 		return nil, &NotFoundError{label: entity.Label}
 	}
 	return nil, &NotLoadedError{edge: "entity"}
+}
+
+// AttachmentsOrErr returns the Attachments value or an error if the edge
+// was not loaded in eager-loading.
+func (e MaintenanceEntryEdges) AttachmentsOrErr() ([]*Attachment, error) {
+	if e.loadedTypes[1] {
+		return e.Attachments, nil
+	}
+	return nil, &NotLoadedError{edge: "attachments"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -159,6 +170,11 @@ func (_m *MaintenanceEntry) Value(name string) (ent.Value, error) {
 // QueryEntity queries the "entity" edge of the MaintenanceEntry entity.
 func (_m *MaintenanceEntry) QueryEntity() *EntityQuery {
 	return NewMaintenanceEntryClient(_m.config).QueryEntity(_m)
+}
+
+// QueryAttachments queries the "attachments" edge of the MaintenanceEntry entity.
+func (_m *MaintenanceEntry) QueryAttachments() *AttachmentQuery {
+	return NewMaintenanceEntryClient(_m.config).QueryAttachments(_m)
 }
 
 // Update returns a builder for updating this MaintenanceEntry.
