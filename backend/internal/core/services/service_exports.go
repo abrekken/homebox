@@ -177,8 +177,11 @@ var exportTables = []tableSpec{
 			" OR id IN (SELECT attachment_thumbnail FROM attachments" +
 			" WHERE attachment_thumbnail IS NOT NULL" +
 			" AND entity_attachments IN (SELECT id FROM entities WHERE group_entities = ?))",
-		pkCol:     "id",
-		fkCols:    map[string]string{"entity_attachments": entitiesTable},
+		pkCol: "id",
+		fkCols: map[string]string{
+			"entity_attachments":            entitiesTable,
+			"maintenance_entry_attachments": "maintenance_entries",
+		},
 		deferCols: map[string]string{"attachment_thumbnail": "attachments"},
 	},
 	{
