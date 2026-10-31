@@ -14,19 +14,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/attachment"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/entity"
+	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/maintenanceentry"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/predicate"
 )
 
 // AttachmentQuery is the builder for querying Attachment entities.
 type AttachmentQuery struct {
 	config
-	ctx           *QueryContext
-	order         []attachment.OrderOption
-	inters        []Interceptor
-	predicates    []predicate.Attachment
-	withEntity    *EntityQuery
-	withThumbnail *AttachmentQuery
-	withFKs       bool
+	ctx                  *QueryContext
+	order                []attachment.OrderOption
+	inters               []Interceptor
+	predicates           []predicate.Attachment
+	withEntity           *EntityQuery
+	withMaintenanceEntry *MaintenanceEntryQuery
+	withThumbnail        *AttachmentQuery
+	withFKs              bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -78,6 +80,28 @@ func (_q *AttachmentQuery) QueryEntity() *EntityQuery {
 			sqlgraph.From(attachment.Table, attachment.FieldID, selector),
 			sqlgraph.To(entity.Table, entity.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, attachment.EntityTable, attachment.EntityColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryMaintenanceEntry chains the current query on the "maintenance_entry" edge.
+func (_q *AttachmentQuery) QueryMaintenanceEntry() *MaintenanceEntryQuery {
+	query := (&MaintenanceEntryClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(attachment.Table, attachment.FieldID, selector),
+			sqlgraph.To(maintenanceentry.Table, maintenanceentry.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, attachment.MaintenanceEntryTable, attachment.MaintenanceEntryColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -294,13 +318,14 @@ func (_q *AttachmentQuery) Clone() *AttachmentQuery {
 		return nil
 	}
 	return &AttachmentQuery{
-		config:        _q.config,
-		ctx:           _q.ctx.Clone(),
-		order:         append([]attachment.OrderOption{}, _q.order...),
-		inters:        append([]Interceptor{}, _q.inters...),
-		predicates:    append([]predicate.Attachment{}, _q.predicates...),
-		withEntity:    _q.withEntity.Clone(),
-		withThumbnail: _q.withThumbnail.Clone(),
+		config:               _q.config,
+		ctx:                  _q.ctx.Clone(),
+		order:                append([]attachment.OrderOption{}, _q.order...),
+		inters:               append([]Interceptor{}, _q.inters...),
+		predicates:           append([]predicate.Attachment{}, _q.predicates...),
+		withEntity:           _q.withEntity.Clone(),
+		withMaintenanceEntry: _q.withMaintenanceEntry.Clone(),
+		withThumbnail:        _q.withThumbnail.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -315,6 +340,17 @@ func (_q *AttachmentQuery) WithEntity(opts ...func(*EntityQuery)) *AttachmentQue
 		opt(query)
 	}
 	_q.withEntity = query
+	return _q
+}
+
+// WithMaintenanceEntry tells the query-builder to eager-load the nodes that are connected to
+// the "maintenance_entry" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *AttachmentQuery) WithMaintenanceEntry(opts ...func(*MaintenanceEntryQuery)) *AttachmentQuery {
+	query := (&MaintenanceEntryClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withMaintenanceEntry = query
 	return _q
 }
 
@@ -408,12 +444,13 @@ func (_q *AttachmentQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*A
 		nodes       = []*Attachment{}
 		withFKs     = _q.withFKs
 		_spec       = _q.querySpec()
-		loadedTypes = [2]bool{
+		loadedTypes = [3]bool{
 			_q.withEntity != nil,
+			_q.withMaintenanceEntry != nil,
 			_q.withThumbnail != nil,
 		}
 	)
-	if _q.withEntity != nil || _q.withThumbnail != nil {
+	if _q.withEntity != nil || _q.withMaintenanceEntry != nil || _q.withThumbnail != nil {
 		withFKs = true
 	}
 	if withFKs {
@@ -440,6 +477,12 @@ func (_q *AttachmentQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*A
 	if query := _q.withEntity; query != nil {
 		if err := _q.loadEntity(ctx, query, nodes, nil,
 			func(n *Attachment, e *Entity) { n.Edges.Entity = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withMaintenanceEntry; query != nil {
+		if err := _q.loadMaintenanceEntry(ctx, query, nodes, nil,
+			func(n *Attachment, e *MaintenanceEntry) { n.Edges.MaintenanceEntry = e }); err != nil {
 			return nil, err
 		}
 	}
@@ -477,6 +520,38 @@ func (_q *AttachmentQuery) loadEntity(ctx context.Context, query *EntityQuery, n
 		nodes, ok := nodeids[n.ID]
 		if !ok {
 			return fmt.Errorf(`unexpected foreign-key "entity_attachments" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
+}
+func (_q *AttachmentQuery) loadMaintenanceEntry(ctx context.Context, query *MaintenanceEntryQuery, nodes []*Attachment, init func(*Attachment), assign func(*Attachment, *MaintenanceEntry)) error {
+	ids := make([]uuid.UUID, 0, len(nodes))
+	nodeids := make(map[uuid.UUID][]*Attachment)
+	for i := range nodes {
+		if nodes[i].maintenance_entry_attachments == nil {
+			continue
+		}
+		fk := *nodes[i].maintenance_entry_attachments
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(maintenanceentry.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "maintenance_entry_attachments" returned %v`, n.ID)
 		}
 		for i := range nodes {
 			assign(nodes[i], n)

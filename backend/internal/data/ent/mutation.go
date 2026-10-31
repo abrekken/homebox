@@ -818,24 +818,26 @@ func (m *APIKeyMutation) ResetEdge(name string) error {
 // AttachmentMutation represents an operation that mutates the Attachment nodes in the graph.
 type AttachmentMutation struct {
 	config
-	op               Op
-	typ              string
-	id               *uuid.UUID
-	created_at       *time.Time
-	updated_at       *time.Time
-	_type            *attachment.Type
-	primary          *bool
-	title            *string
-	_path            *string
-	mime_type        *string
-	clearedFields    map[string]struct{}
-	entity           *uuid.UUID
-	clearedentity    bool
-	thumbnail        *uuid.UUID
-	clearedthumbnail bool
-	done             bool
-	oldValue         func(context.Context) (*Attachment, error)
-	predicates       []predicate.Attachment
+	op                       Op
+	typ                      string
+	id                       *uuid.UUID
+	created_at               *time.Time
+	updated_at               *time.Time
+	_type                    *attachment.Type
+	primary                  *bool
+	title                    *string
+	_path                    *string
+	mime_type                *string
+	clearedFields            map[string]struct{}
+	entity                   *uuid.UUID
+	clearedentity            bool
+	maintenance_entry        *uuid.UUID
+	clearedmaintenance_entry bool
+	thumbnail                *uuid.UUID
+	clearedthumbnail         bool
+	done                     bool
+	oldValue                 func(context.Context) (*Attachment, error)
+	predicates               []predicate.Attachment
 }
 
 var _ ent.Mutation = (*AttachmentMutation)(nil)
@@ -1233,6 +1235,45 @@ func (m *AttachmentMutation) ResetEntity() {
 	m.clearedentity = false
 }
 
+// SetMaintenanceEntryID sets the "maintenance_entry" edge to the MaintenanceEntry entity by id.
+func (m *AttachmentMutation) SetMaintenanceEntryID(id uuid.UUID) {
+	m.maintenance_entry = &id
+}
+
+// ClearMaintenanceEntry clears the "maintenance_entry" edge to the MaintenanceEntry entity.
+func (m *AttachmentMutation) ClearMaintenanceEntry() {
+	m.clearedmaintenance_entry = true
+}
+
+// MaintenanceEntryCleared reports if the "maintenance_entry" edge to the MaintenanceEntry entity was cleared.
+func (m *AttachmentMutation) MaintenanceEntryCleared() bool {
+	return m.clearedmaintenance_entry
+}
+
+// MaintenanceEntryID returns the "maintenance_entry" edge ID in the mutation.
+func (m *AttachmentMutation) MaintenanceEntryID() (id uuid.UUID, exists bool) {
+	if m.maintenance_entry != nil {
+		return *m.maintenance_entry, true
+	}
+	return
+}
+
+// MaintenanceEntryIDs returns the "maintenance_entry" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// MaintenanceEntryID instead. It exists only for internal usage by the builders.
+func (m *AttachmentMutation) MaintenanceEntryIDs() (ids []uuid.UUID) {
+	if id := m.maintenance_entry; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetMaintenanceEntry resets all changes to the "maintenance_entry" edge.
+func (m *AttachmentMutation) ResetMaintenanceEntry() {
+	m.maintenance_entry = nil
+	m.clearedmaintenance_entry = false
+}
+
 // SetThumbnailID sets the "thumbnail" edge to the Attachment entity by id.
 func (m *AttachmentMutation) SetThumbnailID(id uuid.UUID) {
 	m.thumbnail = &id
@@ -1507,9 +1548,12 @@ func (m *AttachmentMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *AttachmentMutation) AddedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.entity != nil {
 		edges = append(edges, attachment.EdgeEntity)
+	}
+	if m.maintenance_entry != nil {
+		edges = append(edges, attachment.EdgeMaintenanceEntry)
 	}
 	if m.thumbnail != nil {
 		edges = append(edges, attachment.EdgeThumbnail)
@@ -1525,6 +1569,10 @@ func (m *AttachmentMutation) AddedIDs(name string) []ent.Value {
 		if id := m.entity; id != nil {
 			return []ent.Value{*id}
 		}
+	case attachment.EdgeMaintenanceEntry:
+		if id := m.maintenance_entry; id != nil {
+			return []ent.Value{*id}
+		}
 	case attachment.EdgeThumbnail:
 		if id := m.thumbnail; id != nil {
 			return []ent.Value{*id}
@@ -1535,7 +1583,7 @@ func (m *AttachmentMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *AttachmentMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	return edges
 }
 
@@ -1547,9 +1595,12 @@ func (m *AttachmentMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *AttachmentMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.clearedentity {
 		edges = append(edges, attachment.EdgeEntity)
+	}
+	if m.clearedmaintenance_entry {
+		edges = append(edges, attachment.EdgeMaintenanceEntry)
 	}
 	if m.clearedthumbnail {
 		edges = append(edges, attachment.EdgeThumbnail)
@@ -1563,6 +1614,8 @@ func (m *AttachmentMutation) EdgeCleared(name string) bool {
 	switch name {
 	case attachment.EdgeEntity:
 		return m.clearedentity
+	case attachment.EdgeMaintenanceEntry:
+		return m.clearedmaintenance_entry
 	case attachment.EdgeThumbnail:
 		return m.clearedthumbnail
 	}
@@ -1575,6 +1628,9 @@ func (m *AttachmentMutation) ClearEdge(name string) error {
 	switch name {
 	case attachment.EdgeEntity:
 		m.ClearEntity()
+		return nil
+	case attachment.EdgeMaintenanceEntry:
+		m.ClearMaintenanceEntry()
 		return nil
 	case attachment.EdgeThumbnail:
 		m.ClearThumbnail()
@@ -1589,6 +1645,9 @@ func (m *AttachmentMutation) ResetEdge(name string) error {
 	switch name {
 	case attachment.EdgeEntity:
 		m.ResetEntity()
+		return nil
+	case attachment.EdgeMaintenanceEntry:
+		m.ResetMaintenanceEntry()
 		return nil
 	case attachment.EdgeThumbnail:
 		m.ResetThumbnail()
@@ -12744,23 +12803,26 @@ func (m *LabelTemplateMutation) ResetEdge(name string) error {
 // MaintenanceEntryMutation represents an operation that mutates the MaintenanceEntry nodes in the graph.
 type MaintenanceEntryMutation struct {
 	config
-	op             Op
-	typ            string
-	id             *uuid.UUID
-	created_at     *time.Time
-	updated_at     *time.Time
-	date           *time.Time
-	scheduled_date *time.Time
-	name           *string
-	description    *string
-	cost           *float64
-	addcost        *float64
-	clearedFields  map[string]struct{}
-	entity         *uuid.UUID
-	clearedentity  bool
-	done           bool
-	oldValue       func(context.Context) (*MaintenanceEntry, error)
-	predicates     []predicate.MaintenanceEntry
+	op                 Op
+	typ                string
+	id                 *uuid.UUID
+	created_at         *time.Time
+	updated_at         *time.Time
+	date               *time.Time
+	scheduled_date     *time.Time
+	name               *string
+	description        *string
+	cost               *float64
+	addcost            *float64
+	clearedFields      map[string]struct{}
+	entity             *uuid.UUID
+	clearedentity      bool
+	attachments        map[uuid.UUID]struct{}
+	removedattachments map[uuid.UUID]struct{}
+	clearedattachments bool
+	done               bool
+	oldValue           func(context.Context) (*MaintenanceEntry, error)
+	predicates         []predicate.MaintenanceEntry
 }
 
 var _ ent.Mutation = (*MaintenanceEntryMutation)(nil)
@@ -13241,6 +13303,60 @@ func (m *MaintenanceEntryMutation) ResetEntity() {
 	m.clearedentity = false
 }
 
+// AddAttachmentIDs adds the "attachments" edge to the Attachment entity by ids.
+func (m *MaintenanceEntryMutation) AddAttachmentIDs(ids ...uuid.UUID) {
+	if m.attachments == nil {
+		m.attachments = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		m.attachments[ids[i]] = struct{}{}
+	}
+}
+
+// ClearAttachments clears the "attachments" edge to the Attachment entity.
+func (m *MaintenanceEntryMutation) ClearAttachments() {
+	m.clearedattachments = true
+}
+
+// AttachmentsCleared reports if the "attachments" edge to the Attachment entity was cleared.
+func (m *MaintenanceEntryMutation) AttachmentsCleared() bool {
+	return m.clearedattachments
+}
+
+// RemoveAttachmentIDs removes the "attachments" edge to the Attachment entity by IDs.
+func (m *MaintenanceEntryMutation) RemoveAttachmentIDs(ids ...uuid.UUID) {
+	if m.removedattachments == nil {
+		m.removedattachments = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		delete(m.attachments, ids[i])
+		m.removedattachments[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedAttachments returns the removed IDs of the "attachments" edge to the Attachment entity.
+func (m *MaintenanceEntryMutation) RemovedAttachmentsIDs() (ids []uuid.UUID) {
+	for id := range m.removedattachments {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// AttachmentsIDs returns the "attachments" edge IDs in the mutation.
+func (m *MaintenanceEntryMutation) AttachmentsIDs() (ids []uuid.UUID) {
+	for id := range m.attachments {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetAttachments resets all changes to the "attachments" edge.
+func (m *MaintenanceEntryMutation) ResetAttachments() {
+	m.attachments = nil
+	m.clearedattachments = false
+	m.removedattachments = nil
+}
+
 // Where appends a list predicates to the MaintenanceEntryMutation builder.
 func (m *MaintenanceEntryMutation) Where(ps ...predicate.MaintenanceEntry) {
 	m.predicates = append(m.predicates, ps...)
@@ -13529,9 +13645,12 @@ func (m *MaintenanceEntryMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *MaintenanceEntryMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.entity != nil {
 		edges = append(edges, maintenanceentry.EdgeEntity)
+	}
+	if m.attachments != nil {
+		edges = append(edges, maintenanceentry.EdgeAttachments)
 	}
 	return edges
 }
@@ -13544,27 +13663,47 @@ func (m *MaintenanceEntryMutation) AddedIDs(name string) []ent.Value {
 		if id := m.entity; id != nil {
 			return []ent.Value{*id}
 		}
+	case maintenanceentry.EdgeAttachments:
+		ids := make([]ent.Value, 0, len(m.attachments))
+		for id := range m.attachments {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *MaintenanceEntryMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
+	if m.removedattachments != nil {
+		edges = append(edges, maintenanceentry.EdgeAttachments)
+	}
 	return edges
 }
 
 // RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
 // the given name in this mutation.
 func (m *MaintenanceEntryMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case maintenanceentry.EdgeAttachments:
+		ids := make([]ent.Value, 0, len(m.removedattachments))
+		for id := range m.removedattachments {
+			ids = append(ids, id)
+		}
+		return ids
+	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *MaintenanceEntryMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.clearedentity {
 		edges = append(edges, maintenanceentry.EdgeEntity)
+	}
+	if m.clearedattachments {
+		edges = append(edges, maintenanceentry.EdgeAttachments)
 	}
 	return edges
 }
@@ -13575,6 +13714,8 @@ func (m *MaintenanceEntryMutation) EdgeCleared(name string) bool {
 	switch name {
 	case maintenanceentry.EdgeEntity:
 		return m.clearedentity
+	case maintenanceentry.EdgeAttachments:
+		return m.clearedattachments
 	}
 	return false
 }
@@ -13596,6 +13737,9 @@ func (m *MaintenanceEntryMutation) ResetEdge(name string) error {
 	switch name {
 	case maintenanceentry.EdgeEntity:
 		m.ResetEntity()
+		return nil
+	case maintenanceentry.EdgeAttachments:
+		m.ResetAttachments()
 		return nil
 	}
 	return fmt.Errorf("unknown MaintenanceEntry edge %s", name)

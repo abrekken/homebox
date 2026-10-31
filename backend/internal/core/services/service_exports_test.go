@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -21,6 +22,7 @@ import (
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/predicate"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/tag"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/repo"
+	"github.com/sysadminsmedia/homebox/backend/internal/data/types"
 )
 
 func tagInGroup(gid uuid.UUID) predicate.Tag {
@@ -631,4 +633,63 @@ func TestRejectUnmappedFKColumns(t *testing.T) {
 	err := rejectUnmappedFKColumns(map[string]any{"b_fk": uuid.NewString()}, "t", dbFKs, known)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, `"b_fk"`)
+}
+
+// Maintenance-entry attachments carry a maintenance_entry_attachments FK; the
+// import must remap it to the new entry so the attachment stays linked to its
+// maintenance entry rather than to the source group's (stale) entry ID.
+func TestExportRoundTrip_MaintenanceAttachment(t *testing.T) {
+	ctx := context.Background()
+
+	src, err := tRepos.Groups.GroupCreate(ctx, "export-maint-src-"+fk.Str(4), uuid.Nil)
+	require.NoError(t, err)
+	itemET, err := tRepos.EntityTypes.GetDefault(ctx, src.ID, false)
+	require.NoError(t, err)
+	item, err := tRepos.Entities.Create(ctx, src.ID, repo.EntityCreate{
+		Name:         "Furnace",
+		EntityTypeID: itemET.ID,
+	})
+	require.NoError(t, err)
+	entry, err := tRepos.MaintEntry.Create(ctx, src.ID, item.ID, repo.MaintenanceEntryCreate{
+		CompletedDate: types.DateFromTime(time.Now()),
+		Name:          "Filter change",
+	})
+	require.NoError(t, err)
+	_, err = tRepos.Attachments.CreateForMaintenance(ctx, src.ID, entry.ID,
+		repo.ItemCreateAttachment{
+			Title:   "receipt.pdf",
+			Content: bytes.NewReader([]byte("receipt body")),
+		},
+		attachment.TypeReceipt)
+	require.NoError(t, err)
+
+	expRow, err := tRepos.Exports.Create(ctx, src.ID)
+	require.NoError(t, err)
+	artifactPath, sizeBytes, err := tSvc.Exports.buildArtifact(ctx, expRow.ID, src.ID)
+	require.NoError(t, err)
+
+	dst, err := tRepos.Groups.GroupCreate(ctx, "export-maint-dst-"+fk.Str(4), uuid.Nil)
+	require.NoError(t, err)
+	importKey := dst.ID.String() + "/imports/" + uuid.New().String() + ".zip"
+	require.NoError(t, copyBlobUnderTest(ctx, tSvc.Exports, artifactPath, importKey))
+	impRow, err := tRepos.Exports.CreateImport(ctx, dst.ID, importKey, sizeBytes)
+	require.NoError(t, err)
+	tSvc.Exports.RunImport(ctx, dst.ID, tUser.ID, impRow.ID)
+
+	gotItem, err := tClient.Entity.Query().
+		Where(entity.HasGroupWith(group.ID(dst.ID)), entity.Name("Furnace")).
+		Only(ctx)
+	require.NoError(t, err)
+	gotEntry, err := gotItem.QueryMaintenanceEntries().Only(ctx)
+	require.NoError(t, err)
+	assert.NotEqual(t, entry.ID, gotEntry.ID, "import should remap PKs")
+
+	gotAtts, err := gotEntry.QueryAttachments().All(ctx)
+	require.NoError(t, err)
+	require.Len(t, gotAtts, 1, "maintenance attachment must stay linked to the imported entry")
+	assert.Equal(t, "receipt.pdf", gotAtts[0].Title)
+
+	gotAttItem, err := gotAtts[0].QueryEntity().Only(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, gotItem.ID, gotAttItem.ID, "attachment must still be linked to the imported item")
 }

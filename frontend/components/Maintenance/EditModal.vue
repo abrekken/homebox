@@ -14,8 +14,51 @@
         <FormTextArea v-model="entry.description" :label="$t('maintenance.modal.notes')" />
         <FormTextField v-model="entry.cost" autofocus :label="$t('maintenance.modal.cost')" />
 
+        <div class="flex flex-col gap-2">
+          <Label>{{ $t("maintenance.modal.attachments") }}</Label>
+          <p v-if="entry.id" class="text-xs text-foreground/60">{{ $t("items.changes_persisted_immediately") }}</p>
+          <p v-else class="text-xs text-foreground/60">{{ $t("maintenance.modal.pending_attachments_hint") }}</p>
+          <Button type="button" variant="outline" :disabled="uploading" @click="clickFileInput">
+            <MdiPaperclip />
+            {{ $t("maintenance.modal.add_attachments") }}
+          </Button>
+          <input ref="fileInput" type="file" multiple hidden @change="onFilesSelected" />
+
+          <ItemAttachmentsList
+            v-if="attachments.length && attachmentItemId"
+            :attachments="attachments"
+            :item-id="attachmentItemId"
+            deletable
+            @delete="removeAttachment"
+          />
+
+          <ul v-if="pendingFiles.length" role="list" class="divide-y rounded-md border">
+            <li
+              v-for="(file, idx) in pendingFiles"
+              :key="`${file.name}-${idx}`"
+              class="flex items-center justify-between py-3 pl-3 pr-4 text-sm"
+            >
+              <div class="flex w-0 flex-1 items-center">
+                <MdiPaperclip class="size-5 shrink-0 text-foreground/50" aria-hidden="true" />
+                <span class="ml-2 w-0 flex-1 truncate">{{ file.name }}</span>
+              </div>
+              <div class="ml-4 flex shrink-0 gap-2">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  :aria-label="$t('maintenance.list.delete')"
+                  @click="pendingFiles.splice(idx, 1)"
+                >
+                  <MdiClose />
+                </Button>
+              </div>
+            </li>
+          </ul>
+        </div>
+
         <DialogFooter>
-          <Button type="submit">
+          <Button type="submit" :disabled="uploading">
             <MdiPost />
             {{ entry.id ? $t("maintenance.modal.edit_action") : $t("maintenance.modal.new_action") }}
           </Button>
@@ -30,17 +73,25 @@
   import { DialogID } from "@/components/ui/dialog-provider/utils";
   import { toast } from "@/components/ui/sonner";
   import MdiPost from "~icons/mdi/post";
+  import MdiPaperclip from "~icons/mdi/paperclip";
+  import MdiClose from "~icons/mdi/close";
   import DatePicker from "~~/components/Form/DatePicker.vue";
   import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
   import { useDialog } from "@/components/ui/dialog-provider";
   import FormTextField from "~/components/Form/TextField.vue";
   import FormTextArea from "~/components/Form/TextArea.vue";
   import Button from "@/components/ui/button/Button.vue";
+  import { Label } from "@/components/ui/label";
+  import ItemAttachmentsList from "~/components/Item/AttachmentsList.vue";
+  import type { ItemAttachment } from "~~/lib/api/types/data-contracts";
 
   const { closeDialog, registerOpenDialogCallback } = useDialog();
 
   const { t } = useI18n();
   const api = useUserApi();
+  const confirm = useConfirm();
+
+  const emit = defineEmits<{ changed: [] }>();
 
   const entry = reactive({
     id: null as string | null,
@@ -51,6 +102,90 @@
     cost: "",
     itemIds: null as string[] | null,
   });
+
+  const attachments = ref<ItemAttachment[]>([]);
+  const attachmentItemId = ref<string | null>(null);
+  const pendingFiles = ref<File[]>([]);
+  const uploading = ref(false);
+  const fileInput = ref<HTMLInputElement>();
+
+  function clickFileInput() {
+    if (!fileInput.value) {
+      return;
+    }
+    fileInput.value.click();
+  }
+
+  function toastUploadError(status: number) {
+    if (status === 413) {
+      toast.error(t("items.toast.attachment_too_large"));
+    } else {
+      toast.error(t("items.toast.failed_upload_attachment"));
+    }
+  }
+
+  async function onFilesSelected() {
+    const input = fileInput.value;
+    if (!input) {
+      return;
+    }
+
+    const files = Array.from(input.files ?? []);
+    input.value = "";
+
+    if (!entry.id) {
+      pendingFiles.value.push(...files);
+      return;
+    }
+
+    // Capture the id up front: the dialog may be closed and reopened on a
+    // different entry while uploads are still in flight.
+    const entryId = entry.id;
+    uploading.value = true;
+    try {
+      for (const file of files) {
+        const { data, error, status } = await api.maintenance.addAttachment(entryId, file, file.name, null);
+        if (error || !data) {
+          toastUploadError(status);
+          continue;
+        }
+
+        if (entry.id === entryId) {
+          attachments.value = data.attachments;
+        }
+        toast.success(t("items.toast.attachment_uploaded"));
+        emit("changed");
+      }
+    } finally {
+      if (entry.id === entryId) {
+        uploading.value = false;
+      }
+    }
+  }
+
+  async function removeAttachment(attachmentId: string) {
+    const entryId = entry.id;
+    if (!entryId) {
+      return;
+    }
+
+    const result = await confirm.open(t("items.delete_attachment_confirm"));
+    if (result.isCanceled) {
+      return;
+    }
+
+    const { error } = await api.maintenance.deleteAttachment(entryId, attachmentId);
+    if (error) {
+      toast.error(t("items.toast.failed_delete_attachment"));
+      return;
+    }
+
+    if (entry.id === entryId) {
+      attachments.value = attachments.value.filter(a => a.id !== attachmentId);
+    }
+    toast.success(t("items.toast.attachment_deleted"));
+    emit("changed");
+  }
 
   async function dispatchFormSubmit() {
     if (entry.id) {
@@ -66,9 +201,10 @@
       return;
     }
 
+    uploading.value = true;
     await Promise.allSettled(
       entry.itemIds.map(async itemId => {
-        const { error } = await api.items.maintenance.create(itemId, {
+        const { data, error } = await api.items.maintenance.create(itemId, {
           name: entry.name,
           completedDate: entry.completedDate,
           scheduledDate: entry.scheduledDate,
@@ -76,12 +212,20 @@
           cost: parseFloat(entry.cost) ? entry.cost : "0",
         });
 
-        if (error) {
+        if (error || !data) {
           toast.error(t("maintenance.toast.failed_to_create"));
           return;
         }
+
+        for (const file of pendingFiles.value) {
+          const { error: uploadError, status } = await api.maintenance.addAttachment(data.id, file, file.name, null);
+          if (uploadError) {
+            toastUploadError(status);
+          }
+        }
       })
     );
+    uploading.value = false;
 
     closeDialog(DialogID.EditMaintenance, true);
   }
@@ -109,6 +253,9 @@
 
   onMounted(() => {
     const cleanup = registerOpenDialogCallback(DialogID.EditMaintenance, params => {
+      pendingFiles.value = [];
+      uploading.value = false;
+
       switch (params.type) {
         case "create":
           entry.id = null;
@@ -118,6 +265,8 @@
           entry.description = "";
           entry.cost = "";
           entry.itemIds = typeof params.itemId === "string" ? [params.itemId] : params.itemId;
+          attachments.value = [];
+          attachmentItemId.value = null;
           break;
         case "update":
           entry.id = params.maintenanceEntry.id;
@@ -129,6 +278,8 @@
           entry.description = params.maintenanceEntry.description;
           entry.cost = params.maintenanceEntry.cost;
           entry.itemIds = null;
+          attachments.value = [...(params.maintenanceEntry.attachments ?? [])];
+          attachmentItemId.value = "itemID" in params.maintenanceEntry ? params.maintenanceEntry.itemID : null;
           break;
         case "duplicate":
           entry.id = null;
@@ -138,6 +289,8 @@
           entry.description = params.maintenanceEntry.description;
           entry.cost = params.maintenanceEntry.cost;
           entry.itemIds = [params.itemId];
+          attachments.value = [];
+          attachmentItemId.value = null;
           break;
       }
     });

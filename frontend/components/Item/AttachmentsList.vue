@@ -32,6 +32,20 @@
               </TooltipTrigger>
               <TooltipContent> {{ $t("components.item.attachments_list.open_new_tab") }} </TooltipContent>
             </Tooltip>
+            <Tooltip v-if="deletable">
+              <TooltipTrigger as-child>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="destructive"
+                  :aria-label="$t('maintenance.list.delete')"
+                  @click="emit('delete', attachment.id)"
+                >
+                  <MdiDelete />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent> {{ $t("maintenance.list.delete") }} </TooltipContent>
+            </Tooltip>
           </TooltipProvider>
         </div>
       </template>
@@ -62,6 +76,20 @@
               </TooltipTrigger>
               <TooltipContent> {{ $t("components.item.attachments_list.open_new_tab") }} </TooltipContent>
             </Tooltip>
+            <Tooltip v-if="deletable">
+              <TooltipTrigger as-child>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="destructive"
+                  :aria-label="$t('maintenance.list.delete')"
+                  @click="emit('delete', attachment.id)"
+                >
+                  <MdiDelete />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent> {{ $t("maintenance.list.delete") }} </TooltipContent>
+            </Tooltip>
           </TooltipProvider>
         </div>
       </template>
@@ -75,7 +103,8 @@
   import MdiLinkVariant from "~icons/mdi/link-variant";
   import MdiDownload from "~icons/mdi/download";
   import MdiOpenInNew from "~icons/mdi/open-in-new";
-  import { buttonVariants } from "@/components/ui/button";
+  import MdiDelete from "~icons/mdi/delete";
+  import { Button, buttonVariants } from "@/components/ui/button";
   import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
   const props = defineProps({
@@ -87,7 +116,15 @@
       type: String,
       required: true,
     },
+    deletable: {
+      type: Boolean,
+      default: false,
+    },
   });
+
+  const emit = defineEmits<{
+    delete: [attachmentId: string];
+  }>();
 
   const api = useUserApi();
 

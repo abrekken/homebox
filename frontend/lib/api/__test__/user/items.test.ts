@@ -164,6 +164,70 @@ describe("user should be able to create an item and add an attachment", () => {
     cleanup();
   });
 
+  test("users should be able to add and delete attachments on maintenance entries", async () => {
+    const api = await sharedUserClient();
+    const [location, cleanup] = await useLocation(api);
+    const { response, data: item } = await api.items.create({
+      name: faker.vehicle.model(),
+      tagIds: [],
+      description: faker.lorem.paragraph(1),
+      quantity: 2,
+      parentId: location.id,
+    });
+    expect(response.status).toBe(201);
+
+    const { response: createResponse, data: entry } = await api.items.maintenance.create(item.id, {
+      name: faker.vehicle.model(),
+      description: faker.lorem.paragraph(1),
+      completedDate: faker.date.past().toISOString().slice(0, 10),
+      scheduledDate: "",
+      cost: faker.number.int(100).toString(),
+    });
+    expect(createResponse.status).toBe(201);
+    expect(entry.attachments).toEqual([]);
+
+    // Add attachment
+    let attachmentId: string;
+    {
+      const receipt = new Blob(["receipt"], { type: "text/plain" });
+      const { response: addResponse, data: updated } = await api.maintenance.addAttachment(
+        entry.id,
+        receipt,
+        "receipt.txt"
+      );
+      expect(addResponse.status).toBe(201);
+      expect(updated.attachments).toHaveLength(1);
+      expect(updated.attachments[0]?.title).toBe("receipt.txt");
+      expect(updated.attachments[0]?.primary).toBe(false);
+      attachmentId = updated.attachments[0]!.id;
+    }
+
+    // Maintenance log shows the attachment
+    {
+      const { response: logResponse, data: log } = await api.items.maintenance.getLog(item.id);
+      expect(logResponse.status).toBe(200);
+      expect(log[0]?.attachments).toHaveLength(1);
+    }
+
+    // The item's own attachments do not include the maintenance attachment
+    {
+      const { response: itemResponse, data: itemOut } = await api.items.get(item.id);
+      expect(itemResponse.status).toBe(200);
+      expect(itemOut.attachments.map(a => a.id)).not.toContain(attachmentId);
+    }
+
+    // Delete attachment
+    {
+      const { response: deleteResponse } = await api.maintenance.deleteAttachment(entry.id, attachmentId);
+      expect(deleteResponse.status).toBe(204);
+
+      const { data: logAfter } = await api.items.maintenance.getLog(item.id);
+      expect(logAfter[0]?.attachments).toHaveLength(0);
+    }
+
+    cleanup();
+  });
+
   test("full path of item should be retrievable", async () => {
     const api = await sharedUserClient();
     const [location, cleanup] = await useLocation(api);

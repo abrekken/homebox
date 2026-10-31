@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/ent"
+	"github.com/sysadminsmedia/homebox/backend/internal/data/ent/attachment"
 	"github.com/sysadminsmedia/homebox/backend/internal/data/types"
 )
 
@@ -129,6 +131,64 @@ func Test_MaintEntryCreate_RejectsForeignItem(t *testing.T) {
 		Name:          "legit",
 	})
 	require.NoError(t, err)
+}
+
+func Test_MaintEntryAttachment_RejectsForeignEntry(t *testing.T) {
+	ctx := context.Background()
+
+	foreignGID, _, foreignTypeID := makeForeignGroup(t)
+	foreignItem, err := tRepos.Entities.Create(ctx, foreignGID, EntityCreate{
+		Name:         "foreign-item-att",
+		EntityTypeID: foreignTypeID,
+	})
+	require.NoError(t, err)
+	foreignEntry, err := tRepos.MaintEntry.Create(ctx, foreignGID, foreignItem.ID, MaintenanceEntryCreate{
+		CompletedDate: nowDate(),
+		Name:          "foreign-entry",
+	})
+	require.NoError(t, err)
+
+	// Caller is in tGroup but supplies a foreign maintenance entry ID — the
+	// attachment must not be created against B's entry.
+	_, err = tRepos.Attachments.CreateForMaintenance(ctx, tGroup.ID, foreignEntry.ID, ItemCreateAttachment{
+		Title:   "should-be-rejected.pdf",
+		Content: strings.NewReader("nope"),
+	}, attachment.TypeAttachment)
+	require.Error(t, err)
+	assert.True(t, ent.IsNotFound(err), "expected NotFound for cross-group CreateForMaintenance, got %T: %v", err, err)
+
+	// Same for the scoped delete path.
+	err = tRepos.Attachments.DeleteForMaintenance(ctx, tGroup.ID, foreignEntry.ID, uuid.New())
+	require.Error(t, err)
+	assert.True(t, ent.IsNotFound(err), "expected NotFound for cross-group DeleteForMaintenance, got %T: %v", err, err)
+}
+
+func Test_MaintEntryDelete_CascadesAttachments(t *testing.T) {
+	ctx := context.Background()
+	itemET := useItemEntityType(t)
+
+	item, err := tRepos.Entities.Create(ctx, tGroup.ID, EntityCreate{
+		Name:         "cascade-item",
+		EntityTypeID: itemET.ID,
+	})
+	require.NoError(t, err)
+
+	entry, err := tRepos.MaintEntry.Create(ctx, tGroup.ID, item.ID, MaintenanceEntryCreate{
+		CompletedDate: nowDate(),
+		Name:          "cascade-entry",
+	})
+	require.NoError(t, err)
+
+	att, err := tRepos.Attachments.CreateForMaintenance(ctx, tGroup.ID, entry.ID, ItemCreateAttachment{
+		Title:   "cascade.pdf",
+		Content: strings.NewReader("cascade"),
+	}, attachment.TypeAttachment)
+	require.NoError(t, err)
+
+	require.NoError(t, tRepos.MaintEntry.Delete(ctx, tGroup.ID, entry.ID))
+
+	_, err = tRepos.Attachments.Get(ctx, tGroup.ID, att.ID)
+	require.Error(t, err, "attachment should be deleted with its maintenance entry")
 }
 
 func Test_EntityTemplateCreate_RejectsForeignDefaultLocation(t *testing.T) {

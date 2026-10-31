@@ -1116,6 +1116,8 @@
             "new": "New"
         },
         "modal": {
+            "add_attachments": "Add Attachments",
+            "attachments": "Attachments",
             "completed_date": "Completed Date",
             "cost": "Cost",
             "delete_confirmation": "Are you sure you want to delete this entry?",
@@ -1125,6 +1127,7 @@
             "new_action": "Create",
             "new_title": "New Entry",
             "notes": "Notes",
+            "pending_attachments_hint": "Files will be uploaded when the entry is saved",
             "scheduled_date": "Scheduled Date"
         },
         "monthly_average": "Monthly Average",

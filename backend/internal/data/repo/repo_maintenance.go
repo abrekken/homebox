@@ -68,7 +68,7 @@ func (r *MaintenanceEntryRepository) GetAllMaintenance(ctx context.Context, grou
 	default:
 		return nil, fmt.Errorf("unknown status %s", filters.Status)
 	}
-	entries, err := query.WithEntity().Order(maintenanceentry.ByScheduledDate()).All(ctx)
+	entries, err := query.WithEntity().WithAttachments().Order(maintenanceentry.ByScheduledDate()).All(ctx)
 
 	if err != nil {
 		return nil, err

@@ -2690,6 +2690,139 @@
                 }
             }
         },
+        "/v1/maintenance/{id}/attachments": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "tags": [
+                    "Maintenance Attachments"
+                ],
+                "summary": "Create Maintenance Entry Attachment",
+                "parameters": [
+                    {
+                        "description": "Maintenance Entry ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "file": {
+                                        "description": "File attachment",
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "name": {
+                                        "description": "name of the file including extension",
+                                        "type": "string"
+                                    },
+                                    "type": {
+                                        "description": "Type of file",
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "file",
+                                    "name"
+                                ]
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/repo.MaintenanceEntry"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/validate.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/validate.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/maintenance/{id}/attachments/{attachment_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "tags": [
+                    "Maintenance Attachments"
+                ],
+                "summary": "Delete Maintenance Entry Attachment",
+                "parameters": [
+                    {
+                        "description": "Maintenance Entry ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Attachment ID",
+                        "name": "attachment_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/validate.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/notifiers": {
             "get": {
                 "security": [
@@ -4143,6 +4276,14 @@
                             }
                         ]
                     },
+                    "maintenance_entry": {
+                        "description": "MaintenanceEntry holds the value of the maintenance_entry edge.",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/ent.MaintenanceEntry"
+                            }
+                        ]
+                    },
                     "thumbnail": {
                         "description": "Thumbnail holds the value of the thumbnail edge.",
                         "allOf": [
@@ -5069,6 +5210,13 @@
             "ent.MaintenanceEntryEdges": {
                 "type": "object",
                 "properties": {
+                    "attachments": {
+                        "description": "Attachments holds the value of the attachments edge.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.Attachment"
+                        }
+                    },
                     "entity": {
                         "description": "Entity holds the value of the entity edge.",
                         "allOf": [
@@ -7022,6 +7170,12 @@
             "repo.MaintenanceEntry": {
                 "type": "object",
                 "properties": {
+                    "attachments": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/repo.ItemAttachment"
+                        }
+                    },
                     "completedDate": {
                         "type": "string"
                     },
@@ -7091,6 +7245,12 @@
             "repo.MaintenanceEntryWithDetails": {
                 "type": "object",
                 "properties": {
+                    "attachments": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/repo.ItemAttachment"
+                        }
+                    },
                     "completedDate": {
                         "type": "string"
                     },

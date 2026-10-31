@@ -32,6 +32,8 @@ const (
 	FieldMimeType = "mime_type"
 	// EdgeEntity holds the string denoting the entity edge name in mutations.
 	EdgeEntity = "entity"
+	// EdgeMaintenanceEntry holds the string denoting the maintenance_entry edge name in mutations.
+	EdgeMaintenanceEntry = "maintenance_entry"
 	// EdgeThumbnail holds the string denoting the thumbnail edge name in mutations.
 	EdgeThumbnail = "thumbnail"
 	// Table holds the table name of the attachment in the database.
@@ -43,6 +45,13 @@ const (
 	EntityInverseTable = "entities"
 	// EntityColumn is the table column denoting the entity relation/edge.
 	EntityColumn = "entity_attachments"
+	// MaintenanceEntryTable is the table that holds the maintenance_entry relation/edge.
+	MaintenanceEntryTable = "attachments"
+	// MaintenanceEntryInverseTable is the table name for the MaintenanceEntry entity.
+	// It exists in this package in order to avoid circular dependency with the "maintenanceentry" package.
+	MaintenanceEntryInverseTable = "maintenance_entries"
+	// MaintenanceEntryColumn is the table column denoting the maintenance_entry relation/edge.
+	MaintenanceEntryColumn = "maintenance_entry_attachments"
 	// ThumbnailTable is the table that holds the thumbnail relation/edge.
 	ThumbnailTable = "attachments"
 	// ThumbnailColumn is the table column denoting the thumbnail relation/edge.
@@ -66,6 +75,7 @@ var Columns = []string{
 var ForeignKeys = []string{
 	"attachment_thumbnail",
 	"entity_attachments",
+	"maintenance_entry_attachments",
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -182,6 +192,13 @@ func ByEntityField(field string, opts ...sql.OrderTermOption) OrderOption {
 	}
 }
 
+// ByMaintenanceEntryField orders the results by maintenance_entry field.
+func ByMaintenanceEntryField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newMaintenanceEntryStep(), sql.OrderByField(field, opts...))
+	}
+}
+
 // ByThumbnailField orders the results by thumbnail field.
 func ByThumbnailField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -193,6 +210,13 @@ func newEntityStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(EntityInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2O, true, EntityTable, EntityColumn),
+	)
+}
+func newMaintenanceEntryStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(MaintenanceEntryInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, true, MaintenanceEntryTable, MaintenanceEntryColumn),
 	)
 }
 func newThumbnailStep() *sqlgraph.Step {
