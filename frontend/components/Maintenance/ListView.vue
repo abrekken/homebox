@@ -11,6 +11,7 @@
   import MdiWrenchClock from "~icons/mdi/wrench-clock";
   import MdiContentDuplicate from "~icons/mdi/content-duplicate";
   import MaintenanceEditModal from "~~/components/Maintenance/EditModal.vue";
+  import ItemAttachmentsList from "~/components/Item/AttachmentsList.vue";
   import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
   import { Badge } from "@/components/ui/badge";
   import { Button, ButtonGroup } from "@/components/ui/button";
@@ -39,14 +40,13 @@
     },
   });
 
-  const { data: maintenanceDataList, refresh: refreshList } = useAsyncData(
+  const { data: maintenanceDataList, refresh: refreshList } = useAsyncData<MaintenanceEntryWithDetails[]>(
     async () => {
       const { data } =
         props.currentItemId !== undefined
           ? await api.items.maintenance.getLog(props.currentItemId, { status: maintenanceFilterStatus.value })
           : await api.maintenance.getAll({ status: maintenanceFilterStatus.value });
-      console.log(data);
-      return data;
+      return data ?? [];
     },
     {
       watch: [maintenanceFilterStatus],
@@ -54,7 +54,6 @@
   );
 
   const stats = computed(() => {
-    console.log(maintenanceDataList);
     if (!maintenanceDataList.value) return [];
 
     const count = maintenanceDataList.value ? maintenanceDataList.value.length || 0 : 0;
@@ -182,9 +181,7 @@
         <BaseSectionHeader class="border-b p-6">
           <span class="mb-2">
             <span v-if="!props.currentItemId">
-              <NuxtLink class="hover:underline" :to="`/item/${(e as MaintenanceEntryWithDetails).itemID}/maintenance`">
-                {{ (e as MaintenanceEntryWithDetails).itemName }}
-              </NuxtLink>
+              <NuxtLink class="hover:underline" :to="`/item/${e.itemID}/maintenance`">{{ e.itemName }}</NuxtLink>
               -
             </span>
             {{ e.name }}
@@ -214,6 +211,9 @@
         </BaseSectionHeader>
         <div :class="{ 'p-6': e.description }">
           <Markdown :source="e.description" />
+        </div>
+        <div v-if="e.attachments?.length" class="px-6 pb-4">
+          <ItemAttachmentsList :attachments="e.attachments" :item-id="e.itemID" />
         </div>
         <ButtonGroup class="flex flex-wrap justify-end p-4">
           <Button

@@ -154,6 +154,8 @@ export interface EntAttachment {
 export interface EntAttachmentEdges {
   /** Entity holds the value of the entity edge. */
   entity: EntEntity;
+  /** MaintenanceEntry holds the value of the maintenance_entry edge. */
+  maintenance_entry: EntMaintenanceEntry;
   /** Thumbnail holds the value of the thumbnail edge. */
   thumbnail: EntAttachment;
 }
@@ -565,6 +567,8 @@ export interface EntMaintenanceEntry {
 }
 
 export interface EntMaintenanceEntryEdges {
+  /** Attachments holds the value of the attachments edge. */
+  attachments: EntAttachment[];
   /** Entity holds the value of the entity edge. */
   entity: EntEntity;
 }
@@ -1319,6 +1323,7 @@ export interface LabelTemplateUpdate {
 }
 
 export interface MaintenanceEntry {
+  attachments: ItemAttachment[];
   completedDate: Date | string;
   /** @example "0" */
   cost: string;
@@ -1347,6 +1352,7 @@ export interface MaintenanceEntryUpdate {
 }
 
 export interface MaintenanceEntryWithDetails {
+  attachments: ItemAttachment[];
   completedDate: Date | string;
   /** @example "0" */
   cost: string;
