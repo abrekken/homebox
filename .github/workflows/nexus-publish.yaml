@@ -51,6 +51,10 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          # Nexus docker repos don't support OCI referrers - provenance/SBOM
+          # attestation pushes hang buildx indefinitely. Keep these off.
+          provenance: false
+          sbom: false
           build-args: |
             VERSION=${{ env.IMAGE_TAG }}
             COMMIT=${{ github.sha }}
