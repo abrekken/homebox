@@ -1,0 +1,59 @@
+name: Publish to Nexus
+
+# Fork-only pipeline: builds this repo's Dockerfile and pushes it to the local
+# Nexus docker registry. Tag scheme: fork-<upstream-version>-<forkrev> 
+# (e.g. fork-0.27.1-1) so fork tags can never collide with upstream v* tags; 
+# the image tag drops the fork- prefix (-> 0.27.1-1). workflow_dispatch builds the 
+# current ref as dev-<sha>.
+
+on:
+  push:
+    tags: ['fork-*']
+  workflow_dispatch:
+
+env:
+  REGISTRY: nexusdocker.dalek.dev
+  IMAGE_NAME: homebox
+
+jobs:
+  build-and-push:
+    name: Build and push to Nexus
+    runs-on: gh-runner-scale-set-homebox
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Determine image tag
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/fork-* ]]; then
+            echo "IMAGE_TAG=${GITHUB_REF#refs/tags/fork-}" >> "$GITHUB_ENV"
+          else
+            echo "IMAGE_TAG=dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+          echo "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Nexus
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.NEXUS_USERNAME }}
+          password: ${{ secrets.NEXUS_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          # Cluster nodes are amd64 only; skip the upstream multi-arch matrix.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          build-args: |
+            VERSION=${{ env.IMAGE_TAG }}
+            COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ env.BUILD_TIME }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/homebox-buildcache:main
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/homebox-buildcache:main,mode=max,ignore-error=true
