@@ -59,5 +59,6 @@ jobs:
             VERSION=${{ env.IMAGE_TAG }}
             COMMIT=${{ github.sha }}
             BUILD_TIME=${{ env.BUILD_TIME }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/homebox-buildcache:main
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/homebox-buildcache:main,mode=max,ignore-error=true
+          # No registry cache: buildx's mode=max cache export (huge intermediate
+          # node_modules/go-build layers) stalls against Nexus. Cold builds are
+          # ~12 min, which is fine for tag-driven releases.
