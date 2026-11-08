@@ -38,10 +38,12 @@ ARG COMMIT
 ARG VERSION
 
 # Install necessary build tools
+# The Fastly-backed alpine CDN sometimes stalls mid-transfer from this network and
+# apk hangs on the dead connection; wrap in timeout+retry so a bad POP fails fast.
 RUN apk update && \
     apk upgrade && \
-    apk add --no-cache git build-base gcc g++ && \
-    if [ "$TARGETARCH" != "arm" ] || [ "$TARGETARCH" != "riscv64" ]; then apk --no-cache add libwebp libavif libheif libjxl; fi
+    ( for i in 1 2 3; do timeout 180 apk --no-cache add git build-base gcc g++ && break; [ "$i" = 3 ] && exit 1; sleep 5; done ) && \
+    if [ "$TARGETARCH" != "arm" ] || [ "$TARGETARCH" != "riscv64" ]; then ( for i in 1 2 3; do timeout 180 apk --no-cache add libwebp libavif libheif libjxl && break; [ "$i" = 3 ] && exit 1; sleep 5; done ); fi
 
 WORKDIR /go/src/app
 
@@ -73,8 +75,8 @@ ENV HBOX_STORAGE_PREFIX_PATH=data
 ENV HBOX_DATABASE_SQLITE_PATH=/data/homebox.db?_pragma=busy_timeout=2000&_pragma=journal_mode=WAL&_fk=1&_time_format=sqlite
 
 # Install necessary runtime dependencies
-RUN apk --no-cache add ca-certificates wget mosquitto-clients && \
-    if [ "$TARGETARCH" != "arm" ] || [ "$TARGETARCH" != "riscv64" ]; then apk --no-cache add libwebp libavif libheif libjxl; fi
+RUN ( for i in 1 2 3; do timeout 180 apk --no-cache add ca-certificates wget mosquitto-clients && break; [ "$i" = 3 ] && exit 1; sleep 5; done ) && \
+    if [ "$TARGETARCH" != "arm" ] || [ "$TARGETARCH" != "riscv64" ]; then ( for i in 1 2 3; do timeout 180 apk --no-cache add libwebp libavif libheif libjxl && break; [ "$i" = 3 ] && exit 1; sleep 5; done ); fi
 
 # Create application directory and copy over built Go binary
 RUN mkdir /app
