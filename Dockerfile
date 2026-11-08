@@ -38,9 +38,11 @@ ARG COMMIT
 ARG VERSION
 
 # Install necessary build tools
-# The Fastly-backed alpine CDN sometimes stalls mid-transfer from this network and
-# apk hangs on the dead connection; wrap in timeout+retry so a bad POP fails fast.
-RUN apk update && \
+# dl-cdn.alpinelinux.org (Fastly) intermittently hands out POPs that stall
+# mid-transfer from this network; pin a reliable mirror and keep timeout+retry
+# as a second line of defense.
+RUN sed -i 's|dl-cdn.alpinelinux.org/alpine|mirror.math.princeton.edu/pub/alpinelinux|' /etc/apk/repositories && \
+    apk update && \
     apk upgrade && \
     ( for i in 1 2 3; do timeout 180 apk --no-cache add git build-base gcc g++ && break; [ "$i" = 3 ] && exit 1; sleep 5; done ) && \
     if [ "$TARGETARCH" != "arm" ] || [ "$TARGETARCH" != "riscv64" ]; then ( for i in 1 2 3; do timeout 180 apk --no-cache add libwebp libavif libheif libjxl && break; [ "$i" = 3 ] && exit 1; sleep 5; done ); fi
@@ -75,7 +77,8 @@ ENV HBOX_STORAGE_PREFIX_PATH=data
 ENV HBOX_DATABASE_SQLITE_PATH=/data/homebox.db?_pragma=busy_timeout=2000&_pragma=journal_mode=WAL&_fk=1&_time_format=sqlite
 
 # Install necessary runtime dependencies
-RUN ( for i in 1 2 3; do timeout 180 apk --no-cache add ca-certificates wget mosquitto-clients && break; [ "$i" = 3 ] && exit 1; sleep 5; done ) && \
+RUN sed -i 's|dl-cdn.alpinelinux.org/alpine|mirror.math.princeton.edu/pub/alpinelinux|' /etc/apk/repositories && \
+    ( for i in 1 2 3; do timeout 180 apk --no-cache add ca-certificates wget mosquitto-clients && break; [ "$i" = 3 ] && exit 1; sleep 5; done ) && \
     if [ "$TARGETARCH" != "arm" ] || [ "$TARGETARCH" != "riscv64" ]; then ( for i in 1 2 3; do timeout 180 apk --no-cache add libwebp libavif libheif libjxl && break; [ "$i" = 3 ] && exit 1; sleep 5; done ); fi
 
 # Create application directory and copy over built Go binary
